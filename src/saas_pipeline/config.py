@@ -7,6 +7,7 @@ Jerarquía de merge (sección 5.8 de la prueba):
 Las claves de nivel superior se documentan aquí como dataclasses estructurados,
 lo que da validación de tipos + autocompletado en IDE sin depender de Hydra.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,22 +25,23 @@ _CONFIG_DIR = _PROJECT_ROOT / "config"
 
 # Structured config — sirve como schema y valores por defecto
 
+
 @dataclass
 class PathsConfig:
-    raw:             str = "data/raw"
-    bronze:          str = "data/bronze"
-    silver:          str = "data/silver"
-    gold:            str = "data/gold"
+    raw: str = "data/raw"
+    bronze: str = "data/bronze"
+    silver: str = "data/silver"
+    gold: str = "data/gold"
     quarantine_root: str = "data"
-    quality_logs:    str = "data/shared/quality_logs"
+    quality_logs: str = "data/shared/quality_logs"
 
 
 @dataclass
 class ExecutionConfig:
-    start_date: str  = "2025-01-01"
-    end_date:   str  = "2025-06-30"
-    tenant:     str  = "all"
-    fail_fast:  bool = False
+    start_date: str = "2025-01-01"
+    end_date: str = "2025-06-30"
+    tenant: str = "all"
+    fail_fast: bool = False
 
 
 @dataclass
@@ -49,37 +51,39 @@ class QualityConfig:
 
 @dataclass
 class SparkConfig:
-    app_name:           str = "saas-pipeline"
-    master:             str = "local[*]"
-    log_level:          str = "WARN"
+    app_name: str = "saas-pipeline"
+    master: str = "local[*]"
+    log_level: str = "WARN"
     shuffle_partitions: int = 8
 
 
 @dataclass
 class SourcesConfig:
     deliveries_file: str = "global_mobility_data_entrega_productos.csv"
-    materials_file:  str = "materials_catalog.csv"
+    materials_file: str = "materials_catalog.csv"
 
 
 @dataclass
 class TenantMetaConfig:
     """Metadata opcional del tenant (campos informativos, no operacionales)."""
-    code:         str = ""
+
+    code: str = ""
     display_name: str = ""
     country_code: str = ""
 
 
 @dataclass
 class PipelineConfig:
-    paths:     PathsConfig     = field(default_factory=PathsConfig)
+    paths: PathsConfig = field(default_factory=PathsConfig)
     execution: ExecutionConfig = field(default_factory=ExecutionConfig)
-    quality:   QualityConfig   = field(default_factory=QualityConfig)
-    spark:     SparkConfig     = field(default_factory=SparkConfig)
-    sources:   SourcesConfig   = field(default_factory=SourcesConfig)
-    tenant:    TenantMetaConfig = field(default_factory=TenantMetaConfig)
+    quality: QualityConfig = field(default_factory=QualityConfig)
+    spark: SparkConfig = field(default_factory=SparkConfig)
+    sources: SourcesConfig = field(default_factory=SourcesConfig)
+    tenant: TenantMetaConfig = field(default_factory=TenantMetaConfig)
 
 
 # Funciones públicas
+
 
 def load_config(env: str, tenant: str = "all") -> DictConfig:
     """
@@ -127,9 +131,9 @@ def load_config(env: str, tenant: str = "all") -> DictConfig:
             logger.debug("Tenant config cargada: %s", tenant_path)
         else:
             logger.warning(
-                "No se encontró config para tenant '%s' en %s. "
-                "Continuando con defaults.",
-                tenant, tenant_path
+                "No se encontró config para tenant '%s' en %s. Continuando con defaults.",
+                tenant,
+                tenant_path,
             )
 
     logger.debug("Config final: %s", OmegaConf.to_yaml(merged))
@@ -150,6 +154,7 @@ def list_configured_tenants() -> list[str]:
 
 
 # Helpers de composición de paths (centralizados para evitar f-strings dispersos)
+
 
 def bronze_path(cfg: DictConfig, tenant: str, table: str) -> str:
     """data/bronze/<tenant>/<table>"""

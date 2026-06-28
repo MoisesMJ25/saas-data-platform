@@ -11,6 +11,7 @@ Tests:
   4. test_temporal_join_quarantine   — material sin match temporal en catálogo va a cuarentena.
   5. test_deduplicate_exact_rows     — filas idénticas en columnas de negocio se deduplicana.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -39,11 +40,11 @@ from saas_pipeline.silver import (
 
 # Fixture de SparkSession compartida (sin Delta — transformaciones puras)
 
+
 @pytest.fixture(scope="session")
 def spark() -> SparkSession:
     return (
-        SparkSession.builder
-        .appName("test-silver-transforms")
+        SparkSession.builder.appName("test-silver-transforms")
         .master("local[1]")
         .config("spark.sql.shuffle.partitions", "1")
         .config("spark.ui.enabled", "false")
@@ -53,43 +54,47 @@ def spark() -> SparkSession:
 
 # Schema mínimo de una fila Bronze procesada para Silver
 
-_BASE_SCHEMA = StructType([
-    StructField("fecha_proceso", StringType(),        nullable=True),
-    StructField("transporte",    LongType(),          nullable=True),
-    StructField("ruta",          LongType(),          nullable=True),
-    StructField("tipo_entrega",  StringType(),        nullable=True),
-    StructField("material",      StringType(),        nullable=True),
-    StructField("precio",        DecimalType(28, 10), nullable=True),
-    StructField("cantidad",      DecimalType(28, 10), nullable=True),
-    StructField("unidad",        StringType(),        nullable=True),
-    StructField("_tenant_id",    StringType(),        nullable=True),
-    StructField("_batch_id",     StringType(),        nullable=True),
-])
+_BASE_SCHEMA = StructType(
+    [
+        StructField("fecha_proceso", StringType(), nullable=True),
+        StructField("transporte", LongType(), nullable=True),
+        StructField("ruta", LongType(), nullable=True),
+        StructField("tipo_entrega", StringType(), nullable=True),
+        StructField("material", StringType(), nullable=True),
+        StructField("precio", DecimalType(28, 10), nullable=True),
+        StructField("cantidad", DecimalType(28, 10), nullable=True),
+        StructField("unidad", StringType(), nullable=True),
+        StructField("_tenant_id", StringType(), nullable=True),
+        StructField("_batch_id", StringType(), nullable=True),
+    ]
+)
 
-_DIM_SCHEMA = StructType([
-    StructField("material",    StringType(),        nullable=True),
-    StructField("descripcion", StringType(),        nullable=True),
-    StructField("categoria",   StringType(),        nullable=True),
-    StructField("precio_base", DecimalType(28, 10), nullable=True),
-    StructField("valid_from",  DateType(),          nullable=True),
-    StructField("valid_to",    DateType(),          nullable=True),
-    StructField("is_current",  BooleanType(),       nullable=True),
-])
+_DIM_SCHEMA = StructType(
+    [
+        StructField("material", StringType(), nullable=True),
+        StructField("descripcion", StringType(), nullable=True),
+        StructField("categoria", StringType(), nullable=True),
+        StructField("precio_base", DecimalType(28, 10), nullable=True),
+        StructField("valid_from", DateType(), nullable=True),
+        StructField("valid_to", DateType(), nullable=True),
+        StructField("is_current", BooleanType(), nullable=True),
+    ]
+)
 
 
 def _row(**kwargs) -> Row:
     """Crea una fila base con defaults sensatos para columnas no especificadas."""
     defaults = {
         "fecha_proceso": "20250115",
-        "transporte":    101,
-        "ruta":          201,
-        "tipo_entrega":  "ZPRE",
-        "material":      "MAT001",
-        "precio":        Decimal("10.0"),
-        "cantidad":      Decimal("5.0"),
-        "unidad":        "ST",
-        "_tenant_id":    "sv",
-        "_batch_id":     "batch-001",
+        "transporte": 101,
+        "ruta": 201,
+        "tipo_entrega": "ZPRE",
+        "material": "MAT001",
+        "precio": Decimal("10.0"),
+        "cantidad": Decimal("5.0"),
+        "unidad": "ST",
+        "_tenant_id": "sv",
+        "_batch_id": "batch-001",
     }
     defaults.update(kwargs)
     # DecimalType no acepta float: convertir automáticamente
@@ -101,6 +106,7 @@ def _row(**kwargs) -> Row:
 
 
 # Test 1: Conversión de unidades CS -> ST
+
 
 class TestUnitConversion:
     def test_cs_multiplied_by_factor(self, spark):
@@ -126,24 +132,24 @@ class TestUnitConversion:
     def test_flags_routine(self, spark):
         """ZPRE y ZVE1 deben tener is_routine_delivery=True, is_bonus_delivery=False."""
         rows = [_row(tipo_entrega=t) for t in ("ZPRE", "ZVE1")]
-        df     = spark.createDataFrame(rows, schema=_BASE_SCHEMA)
+        df = spark.createDataFrame(rows, schema=_BASE_SCHEMA)
         result = _normalize_and_flag(df).collect()
         for row in result:
             assert row["is_routine_delivery"] is True
-            assert row["is_bonus_delivery"]   is False
+            assert row["is_bonus_delivery"] is False
 
     def test_flags_bonus(self, spark):
         """Z04 y Z05 deben tener is_bonus_delivery=True, is_routine_delivery=False."""
         rows = [_row(tipo_entrega=t) for t in ("Z04", "Z05")]
-        df     = spark.createDataFrame(rows, schema=_BASE_SCHEMA)
+        df = spark.createDataFrame(rows, schema=_BASE_SCHEMA)
         result = _normalize_and_flag(df).collect()
         for row in result:
-            assert row["is_bonus_delivery"]   is True
+            assert row["is_bonus_delivery"] is True
             assert row["is_routine_delivery"] is False
 
 
-
 # Test 2: Filtrado de tipo_entrega
+
 
 class TestTipoEntregaFiltering:
     def test_valid_tipos_pass(self, spark):
@@ -159,7 +165,7 @@ class TestTipoEntregaFiltering:
         rows = [
             _row(tipo_entrega="ZPRE"),  # válido
             _row(tipo_entrega="COBR"),  # inválido
-            _row(tipo_entrega="Z99"),   # inválido
+            _row(tipo_entrega="Z99"),  # inválido
         ]
         df = spark.createDataFrame(rows, schema=_BASE_SCHEMA)
         df_valid, n_discarded = _split_tipo_entrega(df)
@@ -170,7 +176,7 @@ class TestTipoEntregaFiltering:
         """Un batch mixto produce el split correcto."""
         rows = [
             _row(tipo_entrega="ZVE1", ruta=1),
-            _row(tipo_entrega="Z04",  ruta=2),
+            _row(tipo_entrega="Z04", ruta=2),
             _row(tipo_entrega="OTRO", ruta=3),
         ]
         df = spark.createDataFrame(rows, schema=_BASE_SCHEMA)
@@ -180,6 +186,7 @@ class TestTipoEntregaFiltering:
 
 
 # Test 3: Cuarentena por anomalías de campo
+
 
 class TestFieldAnomalyQuarantine:
     def test_null_cantidad_goes_to_quarantine(self, spark):
@@ -227,16 +234,17 @@ class TestFieldAnomalyQuarantine:
 
 # Test 4: Join temporal con dim_materials
 
+
 class TestTemporalJoin:
     def _dim_row(self, material, valid_from, valid_to, is_current=True):
         return {
-            "material":    material,
+            "material": material,
             "descripcion": f"Desc {material}",
-            "categoria":   "CAT",
+            "categoria": "CAT",
             "precio_base": Decimal("8.0"),
-            "valid_from":  datetime.date.fromisoformat(valid_from),
-            "valid_to":    datetime.date.fromisoformat(valid_to),
-            "is_current":  is_current,
+            "valid_from": datetime.date.fromisoformat(valid_from),
+            "valid_to": datetime.date.fromisoformat(valid_to),
+            "is_current": is_current,
         }
 
     def test_material_in_range_enriched(self, spark):
@@ -306,8 +314,8 @@ class TestTemporalJoin:
         assert df_q.count() == 0
 
 
-
 # Test 5: Deduplicación de filas exactas
+
 
 class TestDeduplication:
     def test_exact_duplicates_removed(self, spark):

@@ -5,6 +5,7 @@ Usar configure_spark_with_delta_pip (delta-spark) en lugar de configurar el
 JAR manualmente permite que el mismo código funcione en local (pip) y en
 Databricks (Delta ya está disponible en el runtime, getOrCreate() lo reutiliza).
 """
+
 from __future__ import annotations
 
 import importlib.metadata
@@ -25,15 +26,17 @@ from pyspark.sql import SparkSession
 if os.name == "nt" and "SPARK_HOME" not in os.environ:
     try:
         import pyspark as _pyspark
+
         _home = os.path.dirname(_pyspark.__file__)
         if any(ord(c) > 127 for c in _home):
             _ps = (
-                f"(New-Object -ComObject Scripting.FileSystemObject)"
-                f".GetFolder('{_home}').ShortPath"
+                f"(New-Object -ComObject Scripting.FileSystemObject).GetFolder('{_home}').ShortPath"
             )
             _r = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", _ps],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if _r.returncode == 0 and _r.stdout.strip():
                 os.environ["SPARK_HOME"] = _r.stdout.strip()
@@ -49,7 +52,9 @@ def _short_path_win(path: str) -> str:
     try:
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if r.returncode == 0 and r.stdout.strip():
             return r.stdout.strip()
@@ -112,12 +117,13 @@ def get_spark_session(cfg: DictConfig) -> SparkSession:
         SparkSession lista para leer/escribir Delta.
     """
     builder = (
-        SparkSession.builder
-        .appName(cfg.spark.app_name)
+        SparkSession.builder.appName(cfg.spark.app_name)
         .master(cfg.spark.master)
         .config("spark.sql.shuffle.partitions", str(cfg.spark.shuffle_partitions))
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config(
+            "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+        )
     )
 
     local_jars = _delta_jars_from_ivy_cache()

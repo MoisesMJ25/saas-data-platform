@@ -14,6 +14,7 @@ Nota de diseño: las demás anomalías (cantidad <=0, material sin catálogo, pr
 tipo_entrega inválido) son responsabilidad de la capa Silver (sección 6.3). Bronze
 preserva el esquema original y solo descarta/aísla lo que impide la partición.
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,17 +37,19 @@ logger = logging.getLogger(__name__)
 
 # Esquema explícito del CSV de entregas (Evita inferencia y previene cambios silenciosos).
 
-_DELIVERIES_CSV_SCHEMA = StructType([
-    StructField("pais",          StringType(),        nullable=True),
-    StructField("fecha_proceso", StringType(),        nullable=True),
-    StructField("transporte",    LongType(),          nullable=True),
-    StructField("ruta",          LongType(),          nullable=True),
-    StructField("tipo_entrega",  StringType(),        nullable=True),
-    StructField("material",      StringType(),        nullable=True),
-    StructField("precio",        DecimalType(28, 18), nullable=True),
-    StructField("cantidad",      DecimalType(28, 18), nullable=True),
-    StructField("unidad",        StringType(),        nullable=True),
-])
+_DELIVERIES_CSV_SCHEMA = StructType(
+    [
+        StructField("pais", StringType(), nullable=True),
+        StructField("fecha_proceso", StringType(), nullable=True),
+        StructField("transporte", LongType(), nullable=True),
+        StructField("ruta", LongType(), nullable=True),
+        StructField("tipo_entrega", StringType(), nullable=True),
+        StructField("material", StringType(), nullable=True),
+        StructField("precio", DecimalType(28, 18), nullable=True),
+        StructField("cantidad", DecimalType(28, 18), nullable=True),
+        StructField("unidad", StringType(), nullable=True),
+    ]
+)
 
 # Patrón YYYYMMDD: exactamente 8 dígitos numéricos
 _YYYYMMDD_PATTERN = r"^\d{8}$"
@@ -59,12 +62,7 @@ def _to_yyyymmdd(date_str: str) -> str:
 
 def _read_raw_csv(spark: SparkSession, path: str) -> DataFrame:
     """Lee el CSV crudo de la fuente con esquema explícito."""
-    return (
-        spark.read
-        .option("header", "true")
-        .schema(_DELIVERIES_CSV_SCHEMA)
-        .csv(path)
-    )
+    return spark.read.option("header", "true").schema(_DELIVERIES_CSV_SCHEMA).csv(path)
 
 
 def _add_technical_columns(df: DataFrame, source_file: str, batch_id: str) -> DataFrame:
@@ -75,11 +73,10 @@ def _add_technical_columns(df: DataFrame, source_file: str, batch_id: str) -> Da
     para trazabilidad y cumplimiento de 'esquema original preservado'.
     """
     return (
-        df
-        .withColumn("_ingestion_timestamp", F.current_timestamp())
-        .withColumn("_source_file",         F.lit(source_file))
-        .withColumn("_tenant_id",           F.lower(F.col("pais")))
-        .withColumn("_batch_id",            F.lit(batch_id))
+        df.withColumn("_ingestion_timestamp", F.current_timestamp())
+        .withColumn("_source_file", F.lit(source_file))
+        .withColumn("_tenant_id", F.lower(F.col("pais")))
+        .withColumn("_batch_id", F.lit(batch_id))
     )
 
 
@@ -93,18 +90,15 @@ def _split_by_fecha_validity(df: DataFrame) -> tuple[DataFrame, DataFrame]:
     Returns:
         (df_valid, df_invalid)
     """
-    valid_cond = (
-        F.col("fecha_proceso").isNotNull()
-        & F.col("fecha_proceso").rlike(_YYYYMMDD_PATTERN)
+    valid_cond = F.col("fecha_proceso").isNotNull() & F.col("fecha_proceso").rlike(
+        _YYYYMMDD_PATTERN
     )
-    df_valid   = df.filter(valid_cond)
-    df_invalid = (
-        df.filter(~valid_cond)
-        .withColumn(
-            "_quarantine_reason",
-            F.when(F.col("fecha_proceso").isNull(), "null_fecha_proceso")
-            .otherwise("invalid_fecha_proceso_format"),
-        )
+    df_valid = df.filter(valid_cond)
+    df_invalid = df.filter(~valid_cond).withColumn(
+        "_quarantine_reason",
+        F.when(F.col("fecha_proceso").isNull(), "null_fecha_proceso").otherwise(
+            "invalid_fecha_proceso_format"
+        ),
     )
     return df_valid, df_invalid
 
@@ -122,13 +116,9 @@ def _write_bronze_main(
     comprendidas en el rango del run. Una rejecución con los mismos
     parámetros elimina y reinserta exactamente esas particiones.
     """
-    replace_cond = (
-        f"fecha_proceso >= '{start_yyyymmdd}' "
-        f"AND fecha_proceso <= '{end_yyyymmdd}'"
-    )
+    replace_cond = f"fecha_proceso >= '{start_yyyymmdd}' AND fecha_proceso <= '{end_yyyymmdd}'"
     (
-        df.write
-        .format("delta")
+        df.write.format("delta")
         .mode("overwrite")
         .partitionBy("fecha_proceso")
         .option("replaceWhere", replace_cond)
@@ -145,8 +135,7 @@ def _write_bronze_quarantine(df: DataFrame, out_path: str, batch_id: str) -> Non
     distintos se acumulan en la tabla (son auditables por _batch_id).
     """
     (
-        df.write
-        .format("delta")
+        df.write.format("delta")
         .mode("overwrite")
         .option("replaceWhere", f"_batch_id = '{batch_id}'")
         .save(out_path)
@@ -154,6 +143,7 @@ def _write_bronze_quarantine(df: DataFrame, out_path: str, batch_id: str) -> Non
 
 
 # Función pública principal
+
 
 def ingest_deliveries(
     spark: SparkSession,
@@ -183,14 +173,18 @@ def ingest_deliveries(
         )
 
     batch_id = batch_id or str(uuid.uuid4())
-    source_file    = cfg.sources.deliveries_file
-    raw_path       = raw_file_path(cfg, source_file)
+    source_file = cfg.sources.deliveries_file
+    raw_path = raw_file_path(cfg, source_file)
     start_yyyymmdd = _to_yyyymmdd(cfg.execution.start_date)
-    end_yyyymmdd   = _to_yyyymmdd(cfg.execution.end_date)
+    end_yyyymmdd = _to_yyyymmdd(cfg.execution.end_date)
 
     logger.info(
         "[bronze] tenant=%s | batch=%s | rango=%s–%s | src=%s",
-        tenant, batch_id, start_yyyymmdd, end_yyyymmdd, raw_path,
+        tenant,
+        batch_id,
+        start_yyyymmdd,
+        end_yyyymmdd,
+        raw_path,
     )
 
     # 1. Leer CSV crudo con esquema explícito
@@ -207,12 +201,11 @@ def ingest_deliveries(
 
     # 5. Filtrar el rango de fechas sobre las filas válidas
     df_in_range = df_valid.filter(
-        (F.col("fecha_proceso") >= start_yyyymmdd)
-        & (F.col("fecha_proceso") <= end_yyyymmdd)
+        (F.col("fecha_proceso") >= start_yyyymmdd) & (F.col("fecha_proceso") <= end_yyyymmdd)
     )
 
     # 6. Contar antes de escribir (trigger de acción único por DataFrame)
-    written     = df_in_range.count()
+    written = df_in_range.count()
     quarantined = df_invalid.count()
 
     # 7. Escribir tabla principal Bronze
@@ -221,12 +214,16 @@ def ingest_deliveries(
         _write_bronze_main(df_in_range, out_path, start_yyyymmdd, end_yyyymmdd)
         logger.info(
             "[bronze] tenant=%s: %d filas → %s",
-            tenant, written, out_path,
+            tenant,
+            written,
+            out_path,
         )
     else:
         logger.warning(
             "[bronze] tenant=%s: 0 filas en rango %s–%s. No se escribe tabla principal.",
-            tenant, start_yyyymmdd, end_yyyymmdd,
+            tenant,
+            start_yyyymmdd,
+            end_yyyymmdd,
         )
 
     # 8. Escribir bronze_quarantine para fechas inválidas/nulas
@@ -235,7 +232,9 @@ def ingest_deliveries(
         _write_bronze_quarantine(df_invalid, q_path, batch_id)
         logger.warning(
             "[bronze] tenant=%s: %d filas con fecha_proceso inválida/nula → %s",
-            tenant, quarantined, q_path,
+            tenant,
+            quarantined,
+            q_path,
         )
 
     return {"written": written, "quarantined": quarantined}

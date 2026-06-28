@@ -15,6 +15,7 @@ Ejemplos:
     saas-pipeline bronze --env dev --tenant sv --start-date 2025-01-01 --end-date 2025-03-31
     saas-pipeline run    --env qa  --tenant all
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,6 +43,7 @@ logger = logging.getLogger("saas_pipeline.cli")
 # ---------------------------------------------------------------------------
 # Helpers internos
 # ---------------------------------------------------------------------------
+
 
 def _apply_date_overrides(cfg, start_date: str | None, end_date: str | None):
     """Aplica overrides de fecha desde CLI sobre la config ya cargada."""
@@ -103,7 +105,9 @@ def _run_bronze_for_tenants(
             counts = ingest_deliveries(spark, t_cfg, tenant=t, batch_id=batch_id)
             logger.info(
                 "[bronze] tenant=%s ✓ | written=%d | quarantined=%d",
-                t, counts["written"], counts["quarantined"],
+                t,
+                counts["written"],
+                counts["quarantined"],
             )
         except Exception as exc:  # noqa: BLE001
             if base_cfg.execution.fail_fast:
@@ -122,23 +126,34 @@ def _run_bronze_for_tenants(
 # Decoradores de opciones comunes (evitan repetición en cada comando)
 # ---------------------------------------------------------------------------
 
+
 def _common_options(f):
     """Aplica las 4 opciones compartidas por todos los comandos del pipeline."""
     decorators = [
         click.option(
-            "--env", default="dev", show_default=True,
+            "--env",
+            default="dev",
+            show_default=True,
             help="Ambiente de ejecución: dev | qa | main",
         ),
         click.option(
-            "--tenant", default="all", show_default=True,
+            "--tenant",
+            default="all",
+            show_default=True,
             help="Código de tenant en minúscula ('sv', 'hn', …) o 'all'",
         ),
         click.option(
-            "--start-date", "start_date", default=None, metavar="YYYY-MM-DD",
+            "--start-date",
+            "start_date",
+            default=None,
+            metavar="YYYY-MM-DD",
             help="Inicio del rango de fecha_proceso (sobreescribe config)",
         ),
         click.option(
-            "--end-date", "end_date", default=None, metavar="YYYY-MM-DD",
+            "--end-date",
+            "end_date",
+            default=None,
+            metavar="YYYY-MM-DD",
             help="Fin del rango de fecha_proceso (sobreescribe config)",
         ),
     ]
@@ -151,6 +166,7 @@ def _common_options(f):
 # Grupo principal
 # ---------------------------------------------------------------------------
 
+
 @click.group()
 @click.version_option(package_name="saas-data-platform")
 def main() -> None:
@@ -160,6 +176,7 @@ def main() -> None:
 # ---------------------------------------------------------------------------
 # Comando: bronze
 # ---------------------------------------------------------------------------
+
 
 @main.command()
 @_common_options
@@ -171,7 +188,7 @@ def bronze(
 ) -> None:
     """Ingesta CSV raw -> Delta (capa Bronze) con idempotencia por partición."""
     batch_id = str(uuid.uuid4())
-    tenants  = _resolve_tenants(tenant)
+    tenants = _resolve_tenants(tenant)
 
     # Config base para Spark y para leer fail_fast (sin override de tenant)
     base_cfg = load_config(env=env, tenant="all")
@@ -179,7 +196,8 @@ def bronze(
 
     logger.info(
         "=== Bronze START | env=%s | tenants=%s | rango=%s–%s | batch=%s ===",
-        env, tenants,
+        env,
+        tenants,
         base_cfg.execution.start_date,
         base_cfg.execution.end_date,
         batch_id,
@@ -202,6 +220,7 @@ def bronze(
 # Silver y Gold se añadirán cuando sus módulos estén implementados.
 # ---------------------------------------------------------------------------
 
+
 @main.command()
 @_common_options
 def run(
@@ -217,13 +236,15 @@ def run(
     para trazabilidad end-to-end.
     """
     batch_id = str(uuid.uuid4())
-    tenants  = _resolve_tenants(tenant)
+    tenants = _resolve_tenants(tenant)
     base_cfg = load_config(env=env, tenant="all")
     base_cfg = _apply_date_overrides(base_cfg, start_date, end_date)
 
     logger.info(
         "=== Pipeline RUN START | env=%s | tenants=%s | batch=%s ===",
-        env, tenants, batch_id,
+        env,
+        tenants,
+        batch_id,
     )
 
     # --- Bronze ---
@@ -244,16 +265,20 @@ def run(
             silver_counts = process_fact_deliveries(spark, t_cfg, tenant=t, batch_id=batch_id)
             logger.info(
                 "[silver] tenant=%s ✓ | written=%d | quarantined=%d | discarded=%d",
-                t, silver_counts["written"],
-                silver_counts["quarantined"], silver_counts["discarded"],
+                t,
+                silver_counts["written"],
+                silver_counts["quarantined"],
+                silver_counts["discarded"],
             )
 
             # Validaciones de calidad sobre Silver fact_deliveries ya escrito
-            silver_df = spark.read.format("delta").load(
-                silver_path(t_cfg, t, "fact_deliveries")
-            )
+            silver_df = spark.read.format("delta").load(silver_path(t_cfg, t, "fact_deliveries"))
             log_rows, has_critical = run_silver_checks(
-                spark, silver_df, tenant=t, run_id=batch_id, batch_id=batch_id,
+                spark,
+                silver_df,
+                tenant=t,
+                run_id=batch_id,
+                batch_id=batch_id,
             )
             write_quality_log(spark, t_cfg, log_rows)
 

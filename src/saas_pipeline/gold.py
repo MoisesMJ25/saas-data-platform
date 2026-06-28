@@ -11,6 +11,7 @@ Nota de diseño: Gold es derivado, no autoritativo. Cada run sobreescribe las
 particiones del rango procesado. total_revenue usa precio de la transacción
 (columna 'precio' de Silver), no precio_base del catálogo (sección 6.4).
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,11 +27,13 @@ logger = logging.getLogger(__name__)
 
 # Helper interno
 
+
 def _to_yyyymmdd(date_str: str) -> str:
     return date_str.replace("-", "")
 
 
 # Lógica de cálculo
+
 
 def _compute_daily_metrics(df_fact: DataFrame, batch_id: str) -> DataFrame:
     """
@@ -44,18 +47,15 @@ def _compute_daily_metrics(df_fact: DataFrame, batch_id: str) -> DataFrame:
       - active_transports: count distinct de transporte.
     """
     return (
-        df_fact
-        .groupBy("tenant_id", "fecha_proceso", "tipo_entrega")
+        df_fact.groupBy("tenant_id", "fecha_proceso", "tipo_entrega")
         .agg(
             F.sum("cantidad_normalizada_st").alias("total_units"),
-            F.sum(
-                F.col("cantidad_normalizada_st") * F.col("precio")
-            ).alias("total_revenue"),
+            F.sum(F.col("cantidad_normalizada_st") * F.col("precio")).alias("total_revenue"),
             F.countDistinct("ruta").alias("active_routes"),
             F.countDistinct("transporte").alias("active_transports"),
         )
-        .withColumn("_batch_id",     F.lit(batch_id))
-        .withColumn("_computed_at",  F.current_timestamp())
+        .withColumn("_batch_id", F.lit(batch_id))
+        .withColumn("_computed_at", F.current_timestamp())
     )
 
 
@@ -71,13 +71,9 @@ def _write_gold_partition(
     replaceWhere garantiza que re-ejecutar el mismo rango sobreescriba exactamente
     esas particiones sin afectar fechas fuera del rango (sección 5.5).
     """
-    replace_cond = (
-        f"fecha_proceso >= '{start_yyyymmdd}' "
-        f"AND fecha_proceso <= '{end_yyyymmdd}'"
-    )
+    replace_cond = f"fecha_proceso >= '{start_yyyymmdd}' AND fecha_proceso <= '{end_yyyymmdd}'"
     (
-        df.write
-        .format("delta")
+        df.write.format("delta")
         .mode("overwrite")
         .partitionBy("fecha_proceso")
         .option("replaceWhere", replace_cond)
@@ -86,6 +82,7 @@ def _write_gold_partition(
 
 
 # Función pública
+
 
 def process_daily_metrics(
     spark: SparkSession,
@@ -109,21 +106,24 @@ def process_daily_metrics(
         Número de filas escritas en Gold.
     """
     start_yyyymmdd = _to_yyyymmdd(cfg.execution.start_date)
-    end_yyyymmdd   = _to_yyyymmdd(cfg.execution.end_date)
+    end_yyyymmdd = _to_yyyymmdd(cfg.execution.end_date)
 
     silver_tbl = silver_path(cfg, tenant, "fact_deliveries")
-    gold_tbl   = gold_path(cfg, tenant, "daily_metrics_by_delivery_type")
+    gold_tbl = gold_path(cfg, tenant, "daily_metrics_by_delivery_type")
 
     logger.info(
         "[gold] daily_metrics START | tenant=%s | batch=%s | rango=%s–%s",
-        tenant, batch_id, start_yyyymmdd, end_yyyymmdd,
+        tenant,
+        batch_id,
+        start_yyyymmdd,
+        end_yyyymmdd,
     )
 
     df_fact = (
-        spark.read.format("delta").load(silver_tbl)
+        spark.read.format("delta")
+        .load(silver_tbl)
         .filter(
-            (F.col("fecha_proceso") >= start_yyyymmdd)
-            & (F.col("fecha_proceso") <= end_yyyymmdd)
+            (F.col("fecha_proceso") >= start_yyyymmdd) & (F.col("fecha_proceso") <= end_yyyymmdd)
         )
     )
 
@@ -136,12 +136,14 @@ def process_daily_metrics(
         return 0
 
     df_gold = _compute_daily_metrics(df_fact, batch_id)
-    n_gold  = df_gold.count()
+    n_gold = df_gold.count()
 
     _write_gold_partition(df_gold, gold_tbl, start_yyyymmdd, end_yyyymmdd)
 
     logger.info(
         "[gold] daily_metrics DONE | tenant=%s | %d filas -> %s",
-        tenant, n_gold, gold_tbl,
+        tenant,
+        n_gold,
+        gold_tbl,
     )
     return n_gold
