@@ -37,7 +37,6 @@ from saas_pipeline.silver import (
     _temporal_join_and_quarantine,
 )
 
-
 # Fixture de SparkSession compartida (sin Delta — transformaciones puras)
 
 @pytest.fixture(scope="session")
