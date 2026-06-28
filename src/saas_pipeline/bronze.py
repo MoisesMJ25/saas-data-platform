@@ -18,6 +18,7 @@ preserva el esquema original y solo descarta/aísla lo que impide la partición.
 
 from __future__ import annotations
 
+import datetime
 import logging
 import uuid
 
@@ -25,6 +26,7 @@ from omegaconf import DictConfig
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
+    BooleanType,
     DecimalType,
     LongType,
     StringType,
@@ -54,6 +56,19 @@ _DELIVERIES_CSV_SCHEMA = StructType(
 
 # Patrón YYYYMMDD: exactamente 8 dígitos numéricos
 _YYYYMMDD_PATTERN = r"^\d{8}$"
+
+
+@F.udf(BooleanType())
+def _is_real_date(s: str) -> bool:
+    # Python UDF: bypasses spark.sql.ansi.enabled — safe for impossible dates
+    # like "20250230" in both local PySpark and Databricks Serverless.
+    if not s:
+        return False
+    try:
+        datetime.datetime.strptime(s, "%Y%m%d")
+        return True
+    except ValueError:
+        return False
 
 
 def _to_yyyymmdd(date_str: str) -> str:
@@ -94,11 +109,7 @@ def _split_by_fecha_validity(df: DataFrame) -> tuple[DataFrame, DataFrame]:
     """
     has_value = F.col("fecha_proceso").isNotNull()
     has_format = F.col("fecha_proceso").rlike(_YYYYMMDD_PATTERN)
-    is_real_date = F.make_date(
-        F.substring(F.col("fecha_proceso"), 1, 4).cast("int"),
-        F.substring(F.col("fecha_proceso"), 5, 2).cast("int"),
-        F.substring(F.col("fecha_proceso"), 7, 2).cast("int"),
-    ).isNotNull()
+    is_real_date = _is_real_date(F.col("fecha_proceso"))
 
     valid_cond = has_value & has_format & is_real_date
 

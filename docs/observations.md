@@ -402,16 +402,17 @@ de cuarentena incorrecta.
   cambiara, habría que actualizar la validación en dos lugares (Bronze y Silver).
 
 **Resolución en esta implementación:** Corregido durante la prueba en Databricks Serverless,
-donde ANSI mode está activo por defecto y `F.to_date()` lanza excepción en lugar de retornar
-`null` para fechas imposibles. Se aplicaron dos cambios:
+donde `spark.sql.ansi.enabled=true` por defecto. Se descubrió que todas las funciones SQL
+nativas de Spark (`to_date`, `make_date`, `try_to_date`) lanzan excepción para fechas
+imposibles en ANSI mode, y que `try_to_date` es además una extensión Databricks no
+disponible en open-source PySpark 3.5.x. La solución definitiva usa dos cambios:
 
-- **`bronze.py/_split_by_fecha_validity`**: la condición de validez se extendió con
-  `F.make_date(year, month, day).isNotNull()`. Fechas que superan el regex pero son de
-  calendario imposible (p.ej. `20250230`) van a `bronze_quarantine` con
-  `_quarantine_reason = 'invalid_calendar_date'`, nunca llegan a Silver.
-- **`silver.py/_temporal_join_and_quarantine`**: `F.to_date` reemplazado por `F.make_date`
-  como capa defensiva; retorna `null` para fechas imposibles sin lanzar excepción en ANSI
-  mode. `make_date` (disponible desde Spark 3.1) fue preferido sobre `try_to_date` porque
-  este último es una extensión Databricks no disponible en open-source PySpark 3.5.x.
+- **`bronze.py/_split_by_fecha_validity`**: se añadió un Python UDF (`_is_real_date`) que
+  usa `datetime.strptime` con `try/except`. Los UDFs Python son inmunes a ANSI mode porque
+  corren en el intérprete Python del executor, fuera del engine SQL de Spark. Fechas
+  imposibles (p.ej. `20250230`) van a `bronze_quarantine` con
+  `_quarantine_reason = 'invalid_calendar_date'` y nunca llegan a Silver.
+- **`silver.py/_temporal_join_and_quarantine`**: se mantiene `F.to_date()` simple. Es seguro
+  en ANSI mode porque Bronze garantiza que solo fechas de calendario válidas alcanzan Silver.
 
 ---

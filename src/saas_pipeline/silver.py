@@ -275,11 +275,7 @@ def _temporal_join_and_quarantine(
 
     df_with_dt = df.withColumn(
         "_fecha_dt",
-        F.make_date(
-            F.substring(F.col("fecha_proceso"), 1, 4).cast("int"),
-            F.substring(F.col("fecha_proceso"), 5, 2).cast("int"),
-            F.substring(F.col("fecha_proceso"), 7, 2).cast("int"),
-        ),
+        F.to_date(F.col("fecha_proceso"), "yyyyMMdd"),
     )
 
     joined = df_with_dt.join(
