@@ -1,0 +1,4 @@
+tenant:
+  code:         "pe"
+  display_name: "Peru"
+  country_code: "PE"

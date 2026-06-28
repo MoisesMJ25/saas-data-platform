@@ -1,0 +1,4 @@
+tenant:
+  code:         "jm"
+  display_name: "Jamaica"
+  country_code: "JM"

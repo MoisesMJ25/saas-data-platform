@@ -1,0 +1,42 @@
+# config/base.yaml — Defaults compartidos. Siempre se carga primero.
+# Los archivos env/<env>.yaml y tenants/<tenant>.yaml sobreescriben estas claves.
+
+
+paths:
+  # Rutas base por capa. El código compone el resto:
+  #   <base>/<tenant>/<table>/fecha_proceso=YYYYMMDD/
+  # En producción (main.yaml) estas rutas apuntan a ADLS Gen2.
+  raw:             "data/raw"
+  bronze:          "data/bronze"
+  silver:          "data/silver"
+  gold:            "data/gold"
+  # Raíz de cuarentena. El código compone:
+  #   <quarantine_root>/<layer>_quarantine/<tenant>/<table>/
+  quarantine_root: "data"
+  # Tabla Delta compartida cross-tenant (sección 5.9)
+  quality_logs:    "data/shared/quality_logs"
+
+execution:
+  # Rango de fecha_proceso a procesar (formato YYYY-MM-DD)
+  start_date: "2025-01-01"
+  end_date:   "2025-06-30"
+  # Código de tenant en minúscula, o "all" para todos los configurados
+  tenant:     "all"
+  # Si true y --tenant all: abortar toda la corrida al primer fallo de tenant
+  fail_fast:  false
+
+quality:
+  # Si true: abortar pipeline antes de Gold cuando una validación crítica falla
+  fail_on_critical: false
+
+spark:
+  app_name:           "saas-pipeline"
+  master:             "local[*]"
+  log_level:          "WARN"
+  # spark.sql.shuffle.partitions — reducido para local (default Spark = 200)
+  shuffle_partitions: 8
+
+sources:
+  # Nombres de los archivos en paths.raw/
+  deliveries_file: "global_mobility_data_entrega_productos.csv"
+  materials_file:  "materials_catalog.csv"

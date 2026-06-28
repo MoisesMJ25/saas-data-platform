@@ -1,0 +1,89 @@
+[project]
+name = "saas-data-platform"
+version = "0.1.0"
+description = "SAAS Data Platform — Pipeline Medallion Multi-Tenant sobre Databricks + Delta Lake"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    # Motor de procesamiento — alineado con Databricks Runtime 15.4 LTS
+    "pyspark==3.5.3",
+    # Delta Lake 3.x — compatible con Spark 3.5.x (DBR 15.x)
+    "delta-spark==3.2.0",
+    # Gestión de configuración jerárquica YAML (sección 5.8)
+    "omegaconf==2.3.0",
+    # CLI parametrizable (--tenant, --start-date, --end-date)
+    "click>=8.1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Linter + formatter PEP8-compatible (reemplaza flake8 + isort + black)
+    "ruff>=0.5.0",
+    # Framework de tests unitarios (sección 7.1)
+    "pytest>=8.2.0",
+    "pytest-cov>=5.0.0",
+    # Validación de tipos en desarrollo
+    "mypy>=1.10.0",
+    # pyspark-stubs no tiene versión compatible con PySpark 3.5; se omite
+    # "pyspark-stubs>=3.5.0",
+]
+
+[project.scripts]
+saas-pipeline = "saas_pipeline.cli:main"
+
+
+# Ruff — linter y formatter (reemplaza flake8, isort, pyupgrade, etc.)
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line-too-long — manejado por formatter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["saas_pipeline"]
+
+
+# Pytest
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -v"
+markers = [
+    "unit: pruebas unitarias puras (sin Spark)",
+    "integration: pruebas que requieren SparkSession local",
+]
+
+
+# Mypy
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+exclude = ["mentoring/bad_code.py"]
+
+
+# Build system
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

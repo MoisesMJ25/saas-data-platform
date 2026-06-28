@@ -1,0 +1,4 @@
+tenant:
+  code:         "hn"
+  display_name: "Honduras"
+  country_code: "HN"

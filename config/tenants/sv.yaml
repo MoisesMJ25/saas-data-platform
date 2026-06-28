@@ -1,0 +1,4 @@
+tenant:
+  code:         "sv"
+  display_name: "El Salvador"
+  country_code: "SV"

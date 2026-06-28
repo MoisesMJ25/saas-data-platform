@@ -1,0 +1,4 @@
+tenant:
+  code:         "ec"
+  display_name: "Ecuador"
+  country_code: "EC"

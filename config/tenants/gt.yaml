@@ -1,0 +1,4 @@
+tenant:
+  code:         "gt"
+  display_name: "Guatemala"
+  country_code: "GT"
