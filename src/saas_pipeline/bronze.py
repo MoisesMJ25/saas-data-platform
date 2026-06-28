@@ -60,8 +60,7 @@ _YYYYMMDD_PATTERN = r"^\d{8}$"
 
 @F.udf(BooleanType())
 def _is_real_date(s: str) -> bool:
-    # Python UDF: bypasses spark.sql.ansi.enabled — safe for impossible dates
-    # like "20250230" in both local PySpark and Databricks Serverless.
+    """Python UDF para validar fecha calendario."""
     if not s:
         return False
     try:
