@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+wheels/
+pip-wheel-metadata/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Herramientas de desarrollo
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Datos generados por el pipeline (solo se versiona data/raw/)
+data/bronze/
+data/silver/
+data/gold/
+data/bronze_quarantine/
+data/silver_quarantine/
+data/shared/
+
+# Spark / Hadoop / Delta Lake (artefactos de ejecución local)
+derby.log
+metastore_db/
+spark-warehouse/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
