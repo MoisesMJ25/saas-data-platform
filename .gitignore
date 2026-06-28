@@ -32,6 +32,7 @@ htmlcov/
 data/bronze/
 data/silver/
 data/gold/
+data/qa/
 data/bronze_quarantine/
 data/silver_quarantine/
 data/shared/
