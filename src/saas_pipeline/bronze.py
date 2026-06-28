@@ -94,7 +94,11 @@ def _split_by_fecha_validity(df: DataFrame) -> tuple[DataFrame, DataFrame]:
     """
     has_value = F.col("fecha_proceso").isNotNull()
     has_format = F.col("fecha_proceso").rlike(_YYYYMMDD_PATTERN)
-    is_real_date = F.try_to_date(F.col("fecha_proceso"), "yyyyMMdd").isNotNull()
+    is_real_date = F.make_date(
+        F.substring(F.col("fecha_proceso"), 1, 4).cast("int"),
+        F.substring(F.col("fecha_proceso"), 5, 2).cast("int"),
+        F.substring(F.col("fecha_proceso"), 7, 2).cast("int"),
+    ).isNotNull()
 
     valid_cond = has_value & has_format & is_real_date
 

@@ -406,11 +406,12 @@ donde ANSI mode está activo por defecto y `F.to_date()` lanza excepción en lug
 `null` para fechas imposibles. Se aplicaron dos cambios:
 
 - **`bronze.py/_split_by_fecha_validity`**: la condición de validez se extendió con
-  `F.try_to_date(...).isNotNull()`. Fechas que superan el regex pero son de calendario
-  imposible (p.ej. `20250230`) van a `bronze_quarantine` con
+  `F.make_date(year, month, day).isNotNull()`. Fechas que superan el regex pero son de
+  calendario imposible (p.ej. `20250230`) van a `bronze_quarantine` con
   `_quarantine_reason = 'invalid_calendar_date'`, nunca llegan a Silver.
-- **`silver.py/_temporal_join_and_quarantine`**: `F.to_date` reemplazado por `F.try_to_date`
-  como capa defensiva; si alguna fecha imposible escapara de Bronze, Silver la maneja sin
-  excepción (retorna `null` incluso en ANSI mode).
+- **`silver.py/_temporal_join_and_quarantine`**: `F.to_date` reemplazado por `F.make_date`
+  como capa defensiva; retorna `null` para fechas imposibles sin lanzar excepción en ANSI
+  mode. `make_date` (disponible desde Spark 3.1) fue preferido sobre `try_to_date` porque
+  este último es una extensión Databricks no disponible en open-source PySpark 3.5.x.
 
 ---
