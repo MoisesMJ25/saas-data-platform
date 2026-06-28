@@ -101,7 +101,7 @@ def load_config(env: str, tenant: str = "all") -> DictConfig:
         FileNotFoundError: Si base.yaml o env/<env>.yaml no existen.
         ValueError:        Si el código de ambiente es inválido.
     """
-    valid_envs = {"dev", "qa", "main"}
+    valid_envs = {"dev", "qa", "main", "dbx"}
     if env not in valid_envs:
         raise ValueError(f"Ambiente '{env}' no válido. Usar: {valid_envs}")
 

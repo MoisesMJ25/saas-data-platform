@@ -1,0 +1,26 @@
+# config/env/dbx.yaml — Databricks Free Edition (Serverless + Unity Catalog).
+# Paths apuntan a Unity Catalog Volumes. DBFS root está deshabilitado en este entorno.
+# spark.master es ignorado: Serverless gestiona el cluster automáticamente.
+# Delta Lake ya viene incluido en el runtime; no reinstalar delta-spark ni pyspark.
+#
+# Estructura en Unity Catalog:
+#   Catalog: workspace  |  Schema: saas_pipeline  |  Volume: data
+#   Ruta base: /Volumes/workspace/saas_pipeline/data/
+
+paths:
+  raw:             "/Volumes/workspace/saas_pipeline/data/raw"
+  bronze:          "/Volumes/workspace/saas_pipeline/data/bronze"
+  silver:          "/Volumes/workspace/saas_pipeline/data/silver"
+  gold:            "/Volumes/workspace/saas_pipeline/data/gold"
+  quarantine_root: "/Volumes/workspace/saas_pipeline/data"
+  quality_logs:    "/Volumes/workspace/saas_pipeline/data/quality_logs"
+
+spark:
+  shuffle_partitions: 4   # Serverless Free Edition — datos de prueba pequeños
+  log_level: "WARN"
+
+execution:
+  fail_fast: false
+
+quality:
+  fail_on_critical: false

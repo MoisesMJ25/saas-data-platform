@@ -94,7 +94,7 @@ saas-data-platform/
 │   └── code_review.md              # 4+ observaciones accionables + nota al junior
 │
 └── docs/
-    ├── observations.md              # 4 observaciones sustantivas a la arquitectura
+    ├── observations.md              # 9 observaciones a la arquitectura
     ├── infra.md                     # Terraform snippet para onboarding de tenant
     └── onboarding-tenant.md         # Guía paso a paso de onboarding
 ```
@@ -127,6 +127,158 @@ saas-pipeline bronze --env dev --tenant sv
 ```bash
 python -m saas_pipeline.cli run --env dev --tenant sv
 ```
+
+---
+
+## Pruebas en Databricks Free Edition (Serverless)
+
+El ambiente `dbx` (`config/env/dbx.yaml`) está diseñado para Databricks Free Edition con
+Serverless compute y Unity Catalog. Las rutas apuntan a un Unity Catalog Volume en lugar
+de DBFS, que está deshabilitado en este entorno.
+
+> **Entorno confirmado:** Runtime `client.5.7`, Serverless=TRUE, DBFS root deshabilitado.
+
+### Prerequisito: crear Schema y Volume en Unity Catalog (una sola vez)
+
+1. En la barra lateral de Databricks, ve a **Catalog**
+2. Selecciona el catálogo **`workspace`**
+3. Haz clic en **Create Schema** → nombre: `saas_pipeline`
+4. Dentro del schema, haz clic en **Create Volume** → nombre: `data`, tipo: Managed
+
+La ruta resultante es `/Volumes/workspace/saas_pipeline/data/` — ya está configurada en `dbx.yaml`.
+
+### Ejecución en notebook (Serverless)
+
+Crea un notebook Python en tu workspace y ejecuta las celdas en orden.
+
+> **Importante:** no uses el CLI (`saas-pipeline run`) en notebooks Serverless.
+> El CLI llama `spark.stop()` al final y corta la sesión Spark gestionada por Databricks.
+> Invoca las funciones del pipeline directamente como se muestra a continuación.
+
+**Celda 1 — Instalar dependencias faltantes**
+
+```python
+%pip install "omegaconf==2.3.0" "click>=8.1.7"
+```
+
+No instales `pyspark`, `delta-spark` ni `delta`: el Serverless Runtime ya los incluye.
+
+**Celda 2 — Reiniciar el intérprete (obligatorio tras %pip)**
+
+```python
+dbutils.library.restartPython()
+```
+
+**Celda 3 — Añadir el paquete al path**
+
+```python
+import sys
+
+REPO_ROOT = "/Workspace/Repos/<tu-usuario>/saas-data-platform"
+sys.path.insert(0, f"{REPO_ROOT}/src")
+```
+
+Usar `sys.path` en lugar de `%pip install -e` garantiza que `config.py` resuelva
+`_PROJECT_ROOT` correctamente y encuentre los YAMLs de `config/`.
+
+**Celda 4 — Copiar los CSVs del repo al Volume (solo la primera vez)**
+
+Los CSVs ya están en el repo. Los copiamos al Volume para que Spark pueda leerlos:
+
+```python
+VOL = "/Volumes/workspace/saas_pipeline/data"
+REPO_ROOT = "/Workspace/Repos/<tu-usuario>/saas-data-platform"
+
+dbutils.fs.mkdirs(f"{VOL}/raw")
+dbutils.fs.cp(
+    f"file:{REPO_ROOT}/data/raw/global_mobility_data_entrega_productos.csv",
+    f"{VOL}/raw/global_mobility_data_entrega_productos.csv",
+)
+dbutils.fs.cp(
+    f"file:{REPO_ROOT}/data/raw/materials_catalog.csv",
+    f"{VOL}/raw/materials_catalog.csv",
+)
+display(dbutils.fs.ls(f"{VOL}/raw/"))
+```
+
+**Celda 5 — Cargar config e iniciar SparkSession**
+
+```python
+from saas_pipeline.config import load_config
+from saas_pipeline.spark import get_spark_session
+
+cfg = load_config(env="dbx", tenant="sv")
+spark = get_spark_session(cfg)
+print("Spark:", spark.version)
+```
+
+`get_spark_session` llama a `getOrCreate()` — en Serverless devuelve la sesión
+ya activa del runtime sin crear ninguna nueva.
+
+**Celda 6 — Bronze**
+
+```python
+import uuid
+from saas_pipeline.bronze import ingest_deliveries
+
+batch_id = str(uuid.uuid4())
+counts = ingest_deliveries(spark, cfg, tenant="sv", batch_id=batch_id)
+print(counts)  # {"written": N, "quarantined": M}
+```
+
+**Celda 7 — Silver**
+
+```python
+from saas_pipeline.silver import process_dim_materials, process_fact_deliveries
+
+process_dim_materials(spark, cfg, tenant="sv", batch_id=batch_id)
+silver_counts = process_fact_deliveries(spark, cfg, tenant="sv", batch_id=batch_id)
+print(silver_counts)  # {"written": N, "quarantined": M, "discarded": K}
+```
+
+**Celda 8 — Quality checks**
+
+```python
+from saas_pipeline.config import silver_path
+from saas_pipeline.quality import run_silver_checks, write_quality_log
+
+silver_df = spark.read.format("delta").load(silver_path(cfg, "sv", "fact_deliveries"))
+log_rows, has_critical = run_silver_checks(
+    spark, silver_df, tenant="sv", run_id=batch_id, batch_id=batch_id
+)
+write_quality_log(spark, cfg, log_rows)
+print("Has critical issues:", has_critical)
+```
+
+**Celda 9 — Gold**
+
+```python
+from saas_pipeline.gold import process_daily_metrics
+
+n = process_daily_metrics(spark, cfg, tenant="sv", batch_id=batch_id)
+print(f"Gold: {n} filas escritas")
+```
+
+**Celda 10 — Verificar resultados**
+
+```python
+VOL = "/Volumes/workspace/saas_pipeline/data"
+display(spark.read.format("delta").load(f"{VOL}/bronze/sv/deliveries"))
+display(spark.read.format("delta").load(f"{VOL}/silver/sv/fact_deliveries"))
+display(spark.read.format("delta").load(f"{VOL}/gold/sv/daily_metrics_by_delivery_type"))
+display(spark.read.format("delta").load(f"{VOL}/quality_logs"))
+```
+
+### Limpiar entre pruebas completas
+
+```python
+VOL = "/Volumes/workspace/saas_pipeline/data"
+for layer in ["bronze", "silver", "gold", "quality_logs"]:
+    dbutils.fs.rm(f"{VOL}/{layer}", recurse=True)
+```
+
+Delta usa `replaceWhere` (idempotente por partición), pero limpiar antes de una
+prueba completa evita posibles conflictos de schema entre runs.
 
 ---
 
