@@ -7,8 +7,9 @@ Responsabilidades (sección 6.2 de la arquitectura):
   - Normalizar 'pais' a minúscula → _tenant_id (sección 5.3).
   - Filtrar por tenant y rango de fechas del run.
   - Escribir como Delta particionado por fecha_proceso con idempotencia vía replaceWhere.
-  - Aislar en bronze_quarantine las filas con fecha_proceso nula o con formato inválido,
-    ya que no pueden asignarse a una partición (sección 5.6, primer tipo de anomalía).
+  - Aislar en bronze_quarantine las filas con fecha_proceso nula, con formato inválido
+    o con fecha de calendario imposible (p.ej. '20250230'), ya que no pueden asignarse
+    a una partición (sección 5.6, primer tipo de anomalía).
 
 Nota de diseño: las demás anomalías (cantidad <=0, material sin catálogo, precio nulo,
 tipo_entrega inválido) son responsabilidad de la capa Silver (sección 6.3). Bronze
@@ -84,21 +85,25 @@ def _split_by_fecha_validity(df: DataFrame) -> tuple[DataFrame, DataFrame]:
     """
     Separa el DataFrame en filas con fecha_proceso válida e inválida.
 
-    Válida: no nula y coincide con el patrón YYYYMMDD (8 dígitos).
-    Inválida: nula o con formato incorrecto → va a bronze_quarantine.
+    Válida: no nula, coincide con el patrón YYYYMMDD (8 dígitos) y representa
+    una fecha de calendario real (descarta p.ej. '20250230').
+    Inválida: nula, formato incorrecto o fecha imposible → va a bronze_quarantine.
 
     Returns:
         (df_valid, df_invalid)
     """
-    valid_cond = F.col("fecha_proceso").isNotNull() & F.col("fecha_proceso").rlike(
-        _YYYYMMDD_PATTERN
-    )
+    has_value = F.col("fecha_proceso").isNotNull()
+    has_format = F.col("fecha_proceso").rlike(_YYYYMMDD_PATTERN)
+    is_real_date = F.try_to_date(F.col("fecha_proceso"), "yyyyMMdd").isNotNull()
+
+    valid_cond = has_value & has_format & is_real_date
+
     df_valid = df.filter(valid_cond)
     df_invalid = df.filter(~valid_cond).withColumn(
         "_quarantine_reason",
-        F.when(F.col("fecha_proceso").isNull(), "null_fecha_proceso").otherwise(
-            "invalid_fecha_proceso_format"
-        ),
+        F.when(~has_value, "null_fecha_proceso")
+        .when(~has_format, "invalid_fecha_proceso_format")
+        .otherwise("invalid_calendar_date"),
     )
     return df_valid, df_invalid
 

@@ -401,10 +401,16 @@ de cuarentena incorrecta.
   dependencia implícita en el formato (`yyyyMMdd`) conocido desde esa capa. Si el formato
   cambiara, habría que actualizar la validación en dos lugares (Bronze y Silver).
 
-**Resolución en esta implementación:** Se mantuvo la validación con `^\d{8}$` tal como la define
-la sección 5.6 de la arquitectura. El comportamiento actual (fecha inválida → cuarentena Silver
-con razón `material_not_in_catalog`) se identificó durante la ejecución local al observar la
-partición `fecha_proceso=20250230/` en `data/bronze/hn/deliveries/`. Se documenta aquí para
-corrección en la siguiente iteración y discusión en la sustentación.
+**Resolución en esta implementación:** Corregido durante la prueba en Databricks Serverless,
+donde ANSI mode está activo por defecto y `F.to_date()` lanza excepción en lugar de retornar
+`null` para fechas imposibles. Se aplicaron dos cambios:
+
+- **`bronze.py/_split_by_fecha_validity`**: la condición de validez se extendió con
+  `F.try_to_date(...).isNotNull()`. Fechas que superan el regex pero son de calendario
+  imposible (p.ej. `20250230`) van a `bronze_quarantine` con
+  `_quarantine_reason = 'invalid_calendar_date'`, nunca llegan a Silver.
+- **`silver.py/_temporal_join_and_quarantine`**: `F.to_date` reemplazado por `F.try_to_date`
+  como capa defensiva; si alguna fecha imposible escapara de Bronze, Silver la maneja sin
+  excepción (retorna `null` incluso en ANSI mode).
 
 ---

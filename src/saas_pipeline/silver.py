@@ -275,7 +275,7 @@ def _temporal_join_and_quarantine(
 
     df_with_dt = df.withColumn(
         "_fecha_dt",
-        F.to_date(F.col("fecha_proceso"), "yyyyMMdd"),
+        F.try_to_date(F.col("fecha_proceso"), "yyyyMMdd"),
     )
 
     joined = df_with_dt.join(
