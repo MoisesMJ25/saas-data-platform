@@ -14,8 +14,6 @@ pip-wheel-metadata/
 # Entornos virtuales
 .venv/
 venv/
-env/
-ENV/
 
 # Herramientas de desarrollo
 .ruff_cache/

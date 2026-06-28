@@ -1,0 +1,20 @@
+# config/env/main.yaml — Producción sobre Databricks + ADLS Gen2.
+# En producción, estas rutas son montadas vía /dbfs/ o referenciadas via abfss://
+# La clave spark.master es ignorada: Databricks gestiona el cluster.
+paths:
+  raw:             "abfss://raw@saasadlsprod.dfs.core.windows.net"
+  bronze:          "abfss://bronze@saasadlsprod.dfs.core.windows.net"
+  silver:          "abfss://silver@saasadlsprod.dfs.core.windows.net"
+  gold:            "abfss://gold@saasadlsprod.dfs.core.windows.net"
+  quarantine_root: "abfss://quarantine@saasadlsprod.dfs.core.windows.net"
+  quality_logs:    "abfss://shared@saasadlsprod.dfs.core.windows.net/quality_logs"
+
+spark:
+  shuffle_partitions: 200  # Default Spark para clústers grandes
+  log_level: "WARN"
+
+execution:
+  fail_fast: true   # En producción: abortar corrida ante fallo de tenant
+
+quality:
+  fail_on_critical: true

@@ -1,0 +1,14 @@
+# config/env/dev.yaml — Ejecución local de desarrollo.
+# Paths apuntan a data/ en el directorio del proyecto (relativo al CWD).
+paths:
+  raw:             "data/raw"
+  bronze:          "data/bronze"
+  silver:          "data/silver"
+  gold:            "data/gold"
+  quarantine_root: "data"
+  quality_logs:    "data/shared/quality_logs"
+
+spark:
+  shuffle_partitions: 4   # Menos particiones para datos pequeños en dev
+  log_level: "WARN"
+
